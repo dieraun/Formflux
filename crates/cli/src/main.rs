@@ -9,7 +9,7 @@ use std::process::ExitCode;
 use clap::Parser;
 
 use args::Cli;
-use output::{load_config, Context};
+use output::{clean_text, load_config, Context};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -40,15 +40,15 @@ async fn main() -> ExitCode {
         Err(error) => {
             if ctx.json {
                 let payload = serde_json::json!({
-                    "error": error.to_string(),
-                    "causes": error.chain().skip(1).map(|cause| cause.to_string()).collect::<Vec<_>>(),
+                    "error": clean_text(&error.to_string()),
+                    "causes": error.chain().skip(1).map(|cause| clean_text(&cause.to_string())).collect::<Vec<_>>(),
                 });
                 eprintln!(
                     "{}",
                     serde_json::to_string_pretty(&payload).unwrap_or_default()
                 );
             } else {
-                eprintln!("error: {error:#}");
+                eprintln!("error: {}", clean_text(&format!("{error:#}")));
             }
             ExitCode::FAILURE
         }

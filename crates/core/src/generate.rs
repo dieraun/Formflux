@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn qr_matrix_has_quiet_zone() {
-        let matrix = qr_matrix("https://example.com", 4).unwrap();
+        let matrix = qr_matrix("https://example.invalid", 4).unwrap();
         assert!(matrix.len() > 8);
         assert!(!matrix[0][0]);
         assert!(matrix.iter().all(|row| row.len() == matrix.len()));

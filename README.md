@@ -81,6 +81,18 @@ Screen colour picking is intentionally not implemented with a hidden global hook
 the GUI picker starts from the current value and the CLI accepts any colour
 string. This keeps the no-unsafe-code policy intact.
 
+### Current limits
+
+- HEIC and RAW are reserved feature names and currently return `Unsupported`.
+- CUDA support is device detection plus CPU fallback; accelerated kernels are
+  roadmap work.
+- EXIF metadata can be read and stripped; arbitrary tag writing is not exposed.
+- The GUI covers the common convert/hash/OCR/generate workflows. The complete
+  tool matrix, including manifests, subtitles, rename plans and palette export,
+  is available through the CLI.
+- The 300 MB RSS target applies to Formflux itself; FFmpeg runs as a separate
+  process and has its own memory use.
+
 ## External runtime dependencies
 
 Formflux never bundles or links these tools. It probes `PATH` and the configured

@@ -885,6 +885,7 @@ fn tools_cmd(cmd: ToolsCmd, ctx: &Context) -> anyhow::Result<()> {
             })
         }
         ToolsCmd::Merge { parts, output } => {
+            let parts = expand_inputs(&parts, false)?;
             let progress = ctx.progress("merge");
             let bytes = formflux_core::io::merge_files(
                 &parts,

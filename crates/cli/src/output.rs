@@ -30,7 +30,8 @@ impl Context {
         human: impl FnOnce() -> String,
     ) -> anyhow::Result<()> {
         if self.json {
-            println!("{}", serde_json::to_string_pretty(value)?);
+            let value = serde_json::to_value(value)?;
+            println!("{}", serde_json::to_string_pretty(&clean_paths(value))?);
         } else {
             println!("{}", human());
         }
@@ -42,7 +43,7 @@ impl Context {
         if self.json {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&serde_json::json!({ "text": text }))?
+                serde_json::to_string_pretty(&clean_paths(serde_json::json!({ "text": text })))?
             );
         } else {
             println!("{text}");
@@ -55,7 +56,7 @@ impl Context {
         if self.json {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&serde_json::json!({ "path": path }))?
+                serde_json::to_string_pretty(&clean_paths(serde_json::json!({ "path": path })))?
             );
         } else {
             println!("{}", path.display());
@@ -109,6 +110,35 @@ impl ProgressSink for CliProgress {
     }
 }
 
+/// Make Windows canonical paths readable in JSON output.
+///
+/// `std::fs::canonicalize` returns verbatim paths such as `\\?\D:\media`.
+/// They are useful internally but noisy for scripts and humans.
+fn clean_paths(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::String(text) => serde_json::Value::String(clean_path_text(text)),
+        serde_json::Value::Array(items) => {
+            serde_json::Value::Array(items.into_iter().map(clean_paths).collect())
+        }
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .map(|(key, value)| (key, clean_paths(value)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+fn clean_path_text(text: String) -> String {
+    clean_text(&text)
+}
+
+/// Strip Windows verbatim prefixes from any message or path string.
+pub(crate) fn clean_text(text: &str) -> String {
+    let text = text.replace(r"\\?\UNC\", r"\\");
+    text.replace(r"\\?\", "")
+}
+
 /// Load configuration, creating a default file on first launch and applying
 /// CLI overrides without rewriting the file.
 pub fn load_config(
@@ -124,4 +154,19 @@ pub fn load_config(
         config.runtime.jobs = jobs;
     }
     Ok(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_text;
+
+    #[test]
+    fn strips_verbatim_prefixes() {
+        assert_eq!(clean_text(r"\\?\D:\media\clip.mp4"), r"D:\media\clip.mp4");
+        assert_eq!(
+            clean_text(r"\\?\UNC\server\share\clip.mp4"),
+            r"\\server\share\clip.mp4"
+        );
+        assert_eq!(clean_text("plain text"), "plain text");
+    }
 }
