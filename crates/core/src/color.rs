@@ -300,7 +300,8 @@ impl ColorSpace {
     }
 }
 
-/// Parse hex, `rgb(...)`, `rgba(...)` or `hsl(...)`.
+/// Parse hex, `rgb(...)`, `rgba(...)`, `hsl(...)`, `hsla(...)`, `cmyk(...)` or
+/// `lab(...)`.
 pub fn parse(value: &str) -> Result<Rgba> {
     let input = value.trim();
     if input.starts_with('#') {
@@ -326,20 +327,32 @@ pub fn parse(value: &str) -> Result<Rgba> {
         if parts.len() != 4 {
             return Err(FormfluxError::invalid("rgba() needs four channels"));
         }
-        let alpha = if parts[3].ends_with('%') {
-            (number::<f64>(parts[3].trim_end_matches('%'))? / 100.0 * 255.0).round() as u8
-        } else if parts[3].contains('.') {
-            (number::<f64>(parts[3])? * 255.0).round() as u8
-        } else {
-            number::<u8>(parts[3])?
-        };
         return Ok(Rgba {
-            a: alpha,
+            a: parse_alpha(parts[3])?,
             ..Rgba::rgb(
                 parse_channel(parts[0])?,
                 parse_channel(parts[1])?,
                 parse_channel(parts[2])?,
             )
+        });
+    }
+    if let Some(inner) = lower
+        .strip_prefix("hsla(")
+        .and_then(|v| v.strip_suffix(')'))
+    {
+        let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+        if parts.len() != 4 {
+            return Err(FormfluxError::invalid("hsla() needs four values"));
+        }
+        let color = Hsl {
+            h: number::<f64>(parts[0].trim_end_matches("deg"))?,
+            s: number::<f64>(parts[1].trim_end_matches('%'))?,
+            l: number::<f64>(parts[2].trim_end_matches('%'))?,
+        }
+        .to_rgb();
+        return Ok(Rgba {
+            a: parse_alpha(parts[3])?,
+            ..color
         });
     }
     if let Some(inner) = lower.strip_prefix("hsl(").and_then(|v| v.strip_suffix(')')) {
@@ -354,9 +367,58 @@ pub fn parse(value: &str) -> Result<Rgba> {
         }
         .to_rgb());
     }
+    if let Some(inner) = lower
+        .strip_prefix("cmyk(")
+        .and_then(|v| v.strip_suffix(')'))
+    {
+        let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+        if parts.len() != 4 {
+            return Err(FormfluxError::invalid("cmyk() needs four values"));
+        }
+        return Ok(Cmyk {
+            c: percentage(parts[0])?,
+            m: percentage(parts[1])?,
+            y: percentage(parts[2])?,
+            k: percentage(parts[3])?,
+        }
+        .to_rgb());
+    }
+    if let Some(inner) = lower.strip_prefix("lab(").and_then(|v| v.strip_suffix(')')) {
+        let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+        if parts.len() != 3 {
+            return Err(FormfluxError::invalid("lab() needs three values"));
+        }
+        return Ok(Lab {
+            l: percentage_or_number(parts[0])?,
+            a: number::<f64>(parts[1])?,
+            b: number::<f64>(parts[2])?,
+        }
+        .to_rgb());
+    }
     Err(FormfluxError::invalid(format!(
-        "could not parse colour '{value}' (try #RRGGBB, rgb(...), rgba(...) or hsl(...))"
+        "could not parse colour '{value}' (try #RRGGBB, rgb(...), rgba(...), hsl(...), hsla(...), cmyk(...) or lab(...))"
     )))
+}
+
+fn parse_alpha(value: &str) -> Result<u8> {
+    if let Some(percent) = value.strip_suffix('%') {
+        Ok((number::<f64>(percent)? / 100.0 * 255.0)
+            .round()
+            .clamp(0.0, 255.0) as u8)
+    } else if value.contains('.') {
+        Ok((number::<f64>(value)? * 255.0).round().clamp(0.0, 255.0) as u8)
+    } else {
+        Ok(number::<u8>(value)?)
+    }
+}
+
+fn percentage(value: &str) -> Result<f64> {
+    percentage_or_number(value)
+}
+
+fn percentage_or_number(value: &str) -> Result<f64> {
+    let value = value.trim_end_matches('%');
+    Ok(number::<f64>(value)?.clamp(0.0, 100.0))
 }
 
 fn parse_channel(value: &str) -> Result<u8> {
@@ -622,6 +684,22 @@ mod tests {
     fn parses_rgb_and_hsl() {
         assert_eq!(parse("rgb(255, 0, 0)").unwrap(), Rgba::rgb(255, 0, 0));
         assert_eq!(parse("hsl(0, 100%, 50%)").unwrap(), Rgba::rgb(255, 0, 0));
+        assert_eq!(
+            parse("hsla(0, 100%, 50%, 0.5)").unwrap(),
+            Rgba {
+                a: 128,
+                ..Rgba::rgb(255, 0, 0)
+            }
+        );
+        assert_eq!(
+            parse("cmyk(0%, 100%, 100%, 0%)").unwrap(),
+            Rgba::rgb(255, 0, 0)
+        );
+        let lab = Rgba::rgb(255, 0, 0).to_lab();
+        let back = parse(&format!("lab({:.3}, {:.3}, {:.3})", lab.l, lab.a, lab.b)).unwrap();
+        assert!(close(back.r as f64, 255.0, 1.0));
+        assert!(close(back.g as f64, 0.0, 1.0));
+        assert!(close(back.b as f64, 0.0, 1.0));
         assert!(parse("not-a-colour").is_err());
     }
 
