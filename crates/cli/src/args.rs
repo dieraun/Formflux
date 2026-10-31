@@ -16,31 +16,31 @@ use clap::{Args, Parser, Subcommand};
                   Formflux 完全本地运行，绝不上传文件、不连接网络服务，也不捆绑 FFmpeg 或 Tesseract。"
 )]
 pub struct Cli {
-    /// Machine-readable JSON on stdout.
+    /// Machine-readable JSON on stdout / 在标准输出打印机器可读 JSON。
     #[arg(long, global = true)]
     pub json: bool,
-    /// Suppress progress output on stderr.
+    /// Suppress progress output on stderr / 不显示进度信息。
     #[arg(short, long, global = true)]
     pub quiet: bool,
-    /// Skip confirmation prompts (required for destructive operations).
+    /// Skip confirmation prompts (required for destructive operations) / 跳过确认提示。
     #[arg(short = 'y', long, global = true)]
     pub yes: bool,
-    /// Plan the operation without writing anything.
+    /// Plan the operation without writing anything / 只规划，不写入文件。
     #[arg(long, global = true)]
     pub dry_run: bool,
-    /// Overwrite existing outputs.
+    /// Overwrite existing outputs / 覆盖已有输出。
     #[arg(long, global = true)]
     pub force: bool,
-    /// Worker count (0 = logical CPUs).
+    /// Worker count (0 = logical CPUs) / 并发线程数（0 = CPU 核数）。
     #[arg(short = 'j', long, global = true)]
     pub jobs: Option<usize>,
-    /// Alternate configuration file.
+    /// Alternate configuration file / 指定配置文件。
     #[arg(long, global = true, env = "FORMFLUX_CONFIG")]
     pub config: Option<PathBuf>,
-    /// Increase log verbosity (repeatable).
+    /// Increase log verbosity (repeatable) / 提高日志详细度（可重复）。
     #[arg(short = 'v', long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
-    /// Enable trace logging.
+    /// Enable trace logging / 启用 trace 日志。
     #[arg(long, global = true)]
     pub trace: bool,
     /// Interface language: en or zh / 界面语言：en 或 zh（中文）
@@ -55,33 +55,33 @@ pub struct Cli {
 pub enum Command {
     /// Print author, repository, license and version / 显示作者、仓库、许可证与版本.
     About,
-    /// Report FFmpeg, Tesseract, CUDA and platform status.
+    /// Report FFmpeg, Tesseract, CUDA and platform status / 检查 FFmpeg、Tesseract、CUDA 与平台状态。
     Doctor,
-    /// Video and audio conversion.
+    /// Video and audio conversion / 视频与音频转换。
     #[command(subcommand)]
     Media(MediaCmd),
-    /// Image conversion, compression and EXIF.
+    /// Image conversion, compression and EXIF / 图像转换、压缩与 EXIF。
     #[command(subcommand)]
     Image(ImageCmd),
-    /// Hashing and checksum manifests.
+    /// Hashing and checksum manifests / 哈希与校验清单。
     #[command(subcommand)]
     Hash(HashCmd),
-    /// Text, documents, encodings and OCR.
+    /// Text, documents, encodings and OCR / 文本、文档、编码与 OCR。
     #[command(subcommand)]
     Text(TextCmd),
-    /// JSON, YAML and XML.
+    /// JSON, YAML and XML / JSON、YAML 与 XML。
     #[command(subcommand)]
     Data(DataCmd),
-    /// Colour conversion and accessibility.
+    /// Colour conversion and accessibility / 颜色转换与无障碍对比度。
     #[command(subcommand)]
     Color(ColorCmd),
-    /// QR codes, barcodes, UUIDs and passwords.
+    /// QR codes, barcodes, UUIDs and passwords / 二维码、条形码、UUID 与密码。
     #[command(subcommand)]
     Gen(GenCmd),
-    /// Timestamps and time zones.
+    /// Timestamps and time zones / 时间戳与时区。
     #[command(subcommand)]
     Time(TimeCmd),
-    /// File toolbox.
+    /// File toolbox / 文件工具箱。
     #[command(subcommand)]
     Tools(ToolsCmd),
 }
