@@ -9,9 +9,11 @@ use clap::{Args, Parser, Subcommand};
 #[command(
     name = "formflux",
     version,
-    about = "Offline media, image, text, hash, colour and data tools",
+    author = "dieraun",
+    about = "Offline media, image, text, hash, colour and data tools / 离线多媒体、图像、文本、哈希、颜色与数据工具",
     long_about = "Formflux performs every operation locally. It never uploads files, never \
-                  contacts a network service and never bundles FFmpeg or Tesseract."
+                  contacts a network service and never bundles FFmpeg or Tesseract.\n\
+                  Formflux 完全本地运行，绝不上传文件、不连接网络服务，也不捆绑 FFmpeg 或 Tesseract。"
 )]
 pub struct Cli {
     /// Machine-readable JSON on stdout.
@@ -41,6 +43,9 @@ pub struct Cli {
     /// Enable trace logging.
     #[arg(long, global = true)]
     pub trace: bool,
+    /// Interface language: en or zh / 界面语言：en 或 zh（中文）
+    #[arg(long, global = true, default_value = "en")]
+    pub lang: String,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -48,6 +53,8 @@ pub struct Cli {
 /// Top-level groups mirror the GUI tabs.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Print author, repository, license and version / 显示作者、仓库、许可证与版本.
+    About,
     /// Report FFmpeg, Tesseract, CUDA and platform status.
     Doctor,
     /// Video and audio conversion.

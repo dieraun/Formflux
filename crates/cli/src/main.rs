@@ -9,6 +9,7 @@ use std::process::ExitCode;
 use clap::Parser;
 
 use args::Cli;
+use formflux_shared::config::Language;
 use output::{clean_text, load_config, Context};
 
 #[tokio::main]
@@ -27,7 +28,15 @@ async fn main() -> ExitCode {
         eprintln!("warning: could not initialise logging: {error}");
     }
     let jobs = cli.jobs.unwrap_or_else(|| config.effective_jobs());
+    let lang = match Language::parse(&cli.lang) {
+        Ok(lang) => lang,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
     let ctx = Context {
+        lang,
         json: cli.json,
         quiet: cli.quiet,
         dry_run: cli.dry_run,
@@ -48,7 +57,11 @@ async fn main() -> ExitCode {
                     serde_json::to_string_pretty(&payload).unwrap_or_default()
                 );
             } else {
-                eprintln!("error: {}", clean_text(&format!("{error:#}")));
+                eprintln!(
+                    "{}: {}",
+                    ctx.t("error", "错误"),
+                    clean_text(&format!("{error:#}"))
+                );
             }
             ExitCode::FAILURE
         }

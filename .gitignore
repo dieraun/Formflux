@@ -8,3 +8,7 @@ tests-out/
 dist/
 .DS_Store
 Thumbs.db
+*.zip
+.tmp_*
+docs/.cli-demo-frame.png
+Formflux-*.zip*

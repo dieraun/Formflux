@@ -28,6 +28,7 @@ use crate::output::Context;
 /// Dispatch a parsed command.
 pub async fn run(command: Command, config: &AppConfig, ctx: &Context) -> anyhow::Result<()> {
     match command {
+        Command::About => about(ctx),
         Command::Doctor => doctor(config, ctx),
         Command::Media(cmd) => media_cmd(cmd, config, ctx).await,
         Command::Image(cmd) => image_cmd(cmd, ctx),
@@ -41,14 +42,86 @@ pub async fn run(command: Command, config: &AppConfig, ctx: &Context) -> anyhow:
     }
 }
 
+fn about(ctx: &Context) -> anyhow::Result<()> {
+    let description = ctx.lang.pick(
+        "Offline media, image, document, hash, colour, data and developer tools.",
+        "离线多媒体、图像、文档、哈希、颜色、数据与开发者工具箱。",
+    );
+    let payload = json!({
+        "name": formflux_shared::PRODUCT,
+        "version": formflux_shared::VERSION,
+        "author": formflux_shared::AUTHOR,
+        "repository": formflux_shared::REPOSITORY,
+        "license": formflux_shared::LICENSE,
+        "offline": true,
+        "description": description,
+    });
+    let human = match ctx.lang {
+        formflux_shared::config::Language::Zh => format!(
+            "Formflux {}
+作者: {}
+仓库: {}
+许可证: {}
+离线: 是 / 完全离线
+
+             Formflux 离线多媒体、图像、文档、哈希、颜色与数据工具箱。
+             作者：dieraun    仓库：{}
+",
+            formflux_shared::VERSION,
+            formflux_shared::AUTHOR,
+            formflux_shared::REPOSITORY,
+            formflux_shared::LICENSE,
+            formflux_shared::REPOSITORY
+        ),
+        formflux_shared::config::Language::En => format!(
+            "Formflux {}
+Author: {}
+Repository: {}
+License: {}
+Offline: yes / 完全离线
+
+             An offline media, image, document, hash, colour, data and developer toolbox.
+             Author: dieraun    Repository: {}
+",
+            formflux_shared::VERSION,
+            formflux_shared::AUTHOR,
+            formflux_shared::REPOSITORY,
+            formflux_shared::LICENSE,
+            formflux_shared::REPOSITORY
+        ),
+    };
+    ctx.emit(&payload, || human)
+}
+
 fn doctor(config: &AppConfig, ctx: &Context) -> anyhow::Result<()> {
     let report = formflux_core::doctor::DoctorReport::collect(config);
     ctx.emit(&report, || {
-        let mut text = report.headline();
+        let mut text = match ctx.lang {
+            formflux_shared::config::Language::Zh => format!(
+                "Formflux {} · {} ({}) · {} 个 CPU 线程 · {}",
+                report.version,
+                report.os,
+                report.arch,
+                report.cpus,
+                if report.media_ready() {
+                    "媒体功能可用"
+                } else {
+                    "媒体功能不可用（需要 FFmpeg）"
+                }
+            ),
+            _ => report.headline(),
+        };
         text.push('\n');
         text.push_str(&format!(
-            "Platform: {} / {} / {}\nCPUs: {}  jobs: {}\n",
-            report.os, report.arch, report.target, report.cpus, report.jobs
+            "{}: {} / {} / {}\n{}: {}  {}: {}\n",
+            ctx.t("Platform", "平台"),
+            report.os,
+            report.arch,
+            report.target,
+            ctx.t("CPUs", "处理器"),
+            report.cpus,
+            ctx.t("jobs", "并发"),
+            report.jobs
         ));
         text.push_str(&format!(
             "FFmpeg: {}\nFFprobe: {}\nTesseract: {}\nCUDA: {}\n",
@@ -58,7 +131,7 @@ fn doctor(config: &AppConfig, ctx: &Context) -> anyhow::Result<()> {
             report.cuda.summary()
         ));
         if !report.warnings.is_empty() {
-            text.push_str("Warnings:\n");
+            text.push_str(&format!("{}:\n", ctx.t("Warnings", "警告")));
             for warning in &report.warnings {
                 text.push_str(&format!("  - {warning}\n"));
             }

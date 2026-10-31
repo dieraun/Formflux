@@ -3,11 +3,13 @@
 use std::sync::Mutex;
 
 use formflux_core::progress::{ProgressEvent, ProgressSink};
-use formflux_shared::config::AppConfig;
+use formflux_shared::config::{AppConfig, Language};
 use serde::Serialize;
 
 /// Global output settings.
 pub struct Context {
+    /// Interface language.
+    pub lang: Language,
     /// JSON mode.
     pub json: bool,
     /// Quiet mode.
@@ -23,6 +25,11 @@ pub struct Context {
 }
 
 impl Context {
+    /// Choose the English or Chinese variant.
+    pub fn t<'a>(&self, en: &'a str, zh: &'a str) -> &'a str {
+        self.lang.pick(en, zh)
+    }
+
     /// Emit a serializable value or a human string.
     pub fn emit<T: Serialize>(
         &self,

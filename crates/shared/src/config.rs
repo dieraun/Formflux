@@ -15,6 +15,49 @@ use crate::fs as ffs;
 /// Environment variable that overrides the configuration file location.
 pub const CONFIG_ENV: &str = "FORMFLUX_CONFIG";
 
+/// Interface language.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    /// English.
+    #[default]
+    En,
+    /// Simplified Chinese.
+    Zh,
+}
+
+impl Language {
+    /// Stable identifier used by the CLI and JSON output.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Zh => "zh",
+        }
+    }
+
+    /// Parse `en`, `en-US`, `zh`, `zh-CN` and similar tags.
+    pub fn parse(value: &str) -> Result<Self> {
+        let value = value.to_ascii_lowercase();
+        if value.starts_with("zh") {
+            Ok(Self::Zh)
+        } else if value.starts_with("en") {
+            Ok(Self::En)
+        } else {
+            Err(FormfluxError::invalid(format!(
+                "unknown language '{value}' (expected en or zh)"
+            )))
+        }
+    }
+
+    /// Pick the English or Chinese variant.
+    pub fn pick<'a>(self, en: &'a str, zh: &'a str) -> &'a str {
+        match self {
+            Self::En => en,
+            Self::Zh => zh,
+        }
+    }
+}
+
 /// Visual theme preference.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -112,6 +155,8 @@ impl Default for RuntimeConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct UiConfig {
+    /// Interface language.
+    pub language: Language,
     /// Light/dark theme mode.
     pub theme: ThemePreference,
     /// Extra scale factor applied to the whole UI (0.75 - 2.5).
@@ -125,6 +170,7 @@ pub struct UiConfig {
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
+            language: Language::En,
             theme: ThemePreference::System,
             scale: 1.0,
             last_output_dir: None,

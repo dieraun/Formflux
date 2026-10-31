@@ -16,7 +16,7 @@ fi
 
 echo "Scanning sources for HTTP clients..."
 if grep -RInE '\b(reqwest|ureq|attohttpc)::|https?://[a-zA-Z0-9]' \
-  crates --include='*.rs' | grep -vE 'example\.invalid|www\.w3\.org'; then
+  crates --include='*.rs' | grep -vE 'example\.invalid|www\.w3\.org|github\.com/dieraun/Formflux'; then
   echo "error: network code or URL found in source" >&2
   exit 1
 fi

@@ -22,7 +22,7 @@ use formflux_core::media::{self, ConvertOptions};
 use formflux_core::progress::{ProgressEvent, ProgressSink};
 use formflux_core::text::{self, TextFormat};
 use formflux_core::time as timelib;
-use formflux_shared::config::AppConfig;
+use formflux_shared::config::{AppConfig, Language};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Semaphore;
 
@@ -52,17 +52,44 @@ impl Tab {
         Tab::Time,
     ];
 
-    fn label(self) -> &'static str {
+    fn label(self, lang: Language) -> &'static str {
+        lang.pick(
+            match self {
+                Tab::Media => "Media",
+                Tab::Image => "Image",
+                Tab::Document => "Documents",
+                Tab::Hash => "Hashes",
+                Tab::Color => "Colour",
+                Tab::Tools => "Toolbox",
+                Tab::Data => "Data",
+                Tab::Generate => "Generate",
+                Tab::Time => "Time",
+            },
+            match self {
+                Tab::Media => "媒体",
+                Tab::Image => "图像",
+                Tab::Document => "文档",
+                Tab::Hash => "哈希",
+                Tab::Color => "颜色",
+                Tab::Tools => "工具箱",
+                Tab::Data => "数据",
+                Tab::Generate => "生成",
+                Tab::Time => "时间",
+            },
+        )
+    }
+
+    fn icon(self) -> &'static str {
         match self {
-            Tab::Media => "媒体 Media",
-            Tab::Image => "图像 Image",
-            Tab::Document => "文档 Document",
-            Tab::Hash => "哈希 Hash",
-            Tab::Color => "颜色 Colour",
-            Tab::Tools => "工具箱 Tools",
-            Tab::Data => "数据 Data",
-            Tab::Generate => "生成 Generate",
-            Tab::Time => "时间 Time",
+            Tab::Media => "▶",
+            Tab::Image => "◈",
+            Tab::Document => "¶",
+            Tab::Hash => "#",
+            Tab::Color => "◐",
+            Tab::Tools => "⚙",
+            Tab::Data => "{}",
+            Tab::Generate => "✦",
+            Tab::Time => "◷",
         }
     }
 }
@@ -214,9 +241,110 @@ impl Runner {
     }
 }
 
+const ACCENT: egui::Color32 = egui::Color32::from_rgb(0, 150, 136);
+const ACCENT_SOFT: egui::Color32 = egui::Color32::from_rgb(0, 184, 169);
+const DANGER: egui::Color32 = egui::Color32::from_rgb(220, 84, 84);
+
+fn configure_style(ctx: &egui::Context) {
+    let mut style = (*ctx.style()).clone();
+    style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+    style.spacing.button_padding = egui::vec2(12.0, 7.0);
+    style.visuals.selection.bg_fill = ACCENT;
+    style.visuals.selection.stroke = egui::Stroke::new(1.0_f32, egui::Color32::WHITE);
+    style.visuals.hyperlink_color = ACCENT_SOFT;
+    style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(6);
+    style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
+    style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
+    style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
+    style.visuals.widgets.hovered.weak_bg_fill = ACCENT.gamma_multiply(0.18);
+    style.visuals.widgets.active.weak_bg_fill = ACCENT.gamma_multiply(0.28);
+    ctx.set_style(style);
+}
+
+fn sidebar_fill(dark: bool) -> egui::Color32 {
+    if dark {
+        egui::Color32::from_rgb(20, 24, 29)
+    } else {
+        egui::Color32::from_rgb(238, 242, 245)
+    }
+}
+
+fn card_fill(dark: bool) -> egui::Color32 {
+    if dark {
+        egui::Color32::from_rgb(30, 35, 41)
+    } else {
+        egui::Color32::from_rgb(255, 255, 255)
+    }
+}
+
+fn subtle_fill(dark: bool) -> egui::Color32 {
+    if dark {
+        egui::Color32::from_rgb(37, 43, 50)
+    } else {
+        egui::Color32::from_rgb(246, 248, 250)
+    }
+}
+
+fn primary_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    ui.add(
+        egui::Button::new(
+            egui::RichText::new(text)
+                .strong()
+                .color(egui::Color32::WHITE),
+        )
+        .fill(ACCENT)
+        .corner_radius(7)
+        .min_size(egui::vec2(170.0, 34.0)),
+    )
+}
+
+fn status_dot(ui: &mut egui::Ui, ok: bool) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(9.0, 9.0), egui::Sense::hover());
+    ui.painter()
+        .circle_filled(rect.center(), 4.0, if ok { ACCENT_SOFT } else { DANGER });
+}
+
+fn dashed_rect(painter: &egui::Painter, rect: egui::Rect, color: egui::Color32) {
+    let dash = 8.0;
+    let gap = 5.0;
+    let mut x = rect.left();
+    while x < rect.right() {
+        let end = (x + dash).min(rect.right());
+        painter.line_segment(
+            [egui::pos2(x, rect.top()), egui::pos2(end, rect.top())],
+            egui::Stroke::new(1.5_f32, color),
+        );
+        painter.line_segment(
+            [egui::pos2(x, rect.bottom()), egui::pos2(end, rect.bottom())],
+            egui::Stroke::new(1.5_f32, color),
+        );
+        x += dash + gap;
+    }
+    let mut y = rect.top();
+    while y < rect.bottom() {
+        let end = (y + dash).min(rect.bottom());
+        painter.line_segment(
+            [egui::pos2(rect.left(), y), egui::pos2(rect.left(), end)],
+            egui::Stroke::new(1.5_f32, color),
+        );
+        painter.line_segment(
+            [egui::pos2(rect.right(), y), egui::pos2(rect.right(), end)],
+            egui::Stroke::new(1.5_f32, color),
+        );
+        y += dash + gap;
+    }
+}
+
 struct App {
     tab: Tab,
+    lang: Language,
     config: AppConfig,
+    jobs: usize,
+    ffmpeg_ready: bool,
+    tesseract_ready: bool,
+    about_open: bool,
+    settings_open: bool,
+    keep_aspect: bool,
     runner: Runner,
     tasks: Vec<TaskView>,
     inputs: Vec<PathBuf>,
@@ -252,22 +380,54 @@ struct App {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, config: AppConfig) -> anyhow::Result<Self> {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        config: AppConfig,
+        initial_inputs: Vec<PathBuf>,
+    ) -> anyhow::Result<Self> {
         install_cjk_font(&cc.egui_ctx);
         cc.egui_ctx.set_theme(egui::ThemePreference::System);
+        configure_style(&cc.egui_ctx);
         let jobs = config.effective_jobs();
-        Ok(Self {
+        let lang = config.ui.language;
+        let ffmpeg = formflux_core::detect::inspect(
+            "ffmpeg",
+            config.tools.ffmpeg_path.as_deref(),
+            &["-version"],
+        );
+        let tesseract = formflux_core::detect::inspect(
+            "tesseract",
+            config.tools.tesseract_path.as_deref(),
+            &["--version"],
+        );
+        let output_dir = config
+            .ui
+            .last_output_dir
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+            .display()
+            .to_string();
+        let mut app = Self {
             tab: Tab::Image,
+            lang,
             runner: Runner::new(jobs)?,
             config,
+            jobs,
+            ffmpeg_ready: ffmpeg.available,
+            tesseract_ready: tesseract.available,
+            about_open: false,
+            settings_open: false,
+            keep_aspect: true,
             tasks: Vec::new(),
             inputs: Vec::new(),
-            output_dir: std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("."))
-                .display()
-                .to_string(),
+            output_dir,
             result: String::new(),
-            status: "Ready. Drop files anywhere or use Add files.".to_string(),
+            status: lang
+                .pick(
+                    "Ready. Drop files anywhere or use Add files.",
+                    "就绪。拖入文件，或点击“添加文件”。",
+                )
+                .to_string(),
             preview: None,
             preview_for: None,
             media_format: "mp4".to_string(),
@@ -293,7 +453,21 @@ impl App {
             radix_to: "16".to_string(),
             ocr_lang: "eng".to_string(),
             ocr_psm: 3,
-        })
+        };
+        if !initial_inputs.is_empty() {
+            app.add_inputs(initial_inputs);
+        }
+        Ok(app)
+    }
+
+    fn t<'a>(&self, en: &'a str, zh: &'a str) -> &'a str {
+        self.lang.pick(en, zh)
+    }
+
+    fn set_language(&mut self, lang: Language) {
+        self.lang = lang;
+        self.config.ui.language = lang;
+        let _ = self.config.save_default();
     }
 
     fn add_inputs(&mut self, paths: Vec<PathBuf>) {
@@ -448,61 +622,218 @@ impl eframe::App for App {
             self.add_inputs(dropped);
         }
 
+        let dark = ctx.style().visuals.dark_mode;
+        let lang = self.lang;
+
         egui::SidePanel::left("navigation")
             .resizable(false)
-            .exact_width(170.0)
+            .exact_width(218.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(sidebar_fill(dark))
+                    .inner_margin(egui::Margin::symmetric(12, 14)),
+            )
             .show(ctx, |ui| {
-                ui.add_space(12.0);
-                ui.heading("Formflux");
-                ui.label(egui::RichText::new("offline toolbox").small().weak());
-                ui.add_space(16.0);
+                ui.horizontal(|ui| {
+                    egui::Frame::new()
+                        .fill(ACCENT)
+                        .corner_radius(10)
+                        .inner_margin(egui::Margin::symmetric(11, 7))
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new("F")
+                                    .heading()
+                                    .strong()
+                                    .color(egui::Color32::WHITE),
+                            );
+                        });
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("Formflux").heading().strong());
+                        ui.label(
+                            egui::RichText::new(lang.pick("offline toolbox", "离线工具箱"))
+                                .small()
+                                .weak(),
+                        );
+                    });
+                });
+                ui.add_space(18.0);
                 for tab in Tab::ALL {
-                    if ui.selectable_label(self.tab == tab, tab.label()).clicked() {
+                    let selected = self.tab == tab;
+                    let text =
+                        egui::RichText::new(format!("{}   {}", tab.icon(), tab.label(self.lang)))
+                            .size(14.0)
+                            .color(if selected {
+                                egui::Color32::WHITE
+                            } else {
+                                ui.visuals().text_color()
+                            });
+                    let button = egui::Button::new(text)
+                        .fill(if selected {
+                            ACCENT
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        })
+                        .stroke(egui::Stroke::NONE)
+                        .corner_radius(7)
+                        .min_size(egui::vec2(ui.available_width(), 34.0));
+                    if ui.add(button).clicked() {
                         self.tab = tab;
                     }
                 }
-                ui.add_space(20.0);
+                ui.add_space(14.0);
                 ui.separator();
-                ui.label(format!(
-                    "FFmpeg: {}",
-                    if self.config.tools.ffmpeg_path.is_some() {
-                        "configured"
-                    } else {
-                        "PATH"
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .selectable_label(self.lang == Language::En, "EN")
+                        .clicked()
+                    {
+                        self.set_language(Language::En);
                     }
-                ));
-                ui.label(format!("jobs: {}", self.config.effective_jobs()));
+                    if ui
+                        .selectable_label(self.lang == Language::Zh, "中文")
+                        .clicked()
+                    {
+                        self.set_language(Language::Zh);
+                    }
+                });
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    ui.label(
+                        egui::RichText::new(format!("v{} · MIT", formflux_shared::VERSION))
+                            .small()
+                            .weak(),
+                    );
+                    if ui
+                        .small_button(self.t("About Formflux", "关于 Formflux"))
+                        .clicked()
+                    {
+                        self.about_open = true;
+                    }
+                    ui.add_space(4.0);
+                });
+            });
+
+        egui::TopBottomPanel::bottom("status")
+            .exact_height(34.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(subtle_fill(dark))
+                    .inner_margin(egui::Margin::symmetric(12, 6)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    status_dot(ui, self.ffmpeg_ready);
+                    ui.label(
+                        egui::RichText::new(if self.ffmpeg_ready {
+                            self.t("FFmpeg: Ready", "FFmpeg：就绪")
+                        } else {
+                            self.t("FFmpeg: Missing", "FFmpeg：缺失")
+                        })
+                        .small(),
+                    );
+                    ui.add_space(8.0);
+                    status_dot(ui, self.tesseract_ready);
+                    ui.label(
+                        egui::RichText::new(if self.tesseract_ready {
+                            self.t("Tesseract: Ready", "Tesseract：就绪")
+                        } else {
+                            self.t("Tesseract: Optional", "Tesseract：可选")
+                        })
+                        .small(),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(format!("{} {}", self.t("About", "关于"), "ⓘ"))
+                            .clicked()
+                        {
+                            self.about_open = true;
+                        }
+                        if ui
+                            .button(format!("{} {}", self.t("Settings", "设置"), "⚙"))
+                            .clicked()
+                        {
+                            self.settings_open = true;
+                        }
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{}: {}  ·  v{}",
+                                self.t("jobs", "并发"),
+                                self.jobs,
+                                formflux_shared::VERSION
+                            ))
+                            .small()
+                            .weak(),
+                        );
+                    });
+                });
             });
 
         egui::TopBottomPanel::bottom("tasks")
             .resizable(true)
-            .default_height(180.0)
+            .default_height(186.0)
+            .min_height(120.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(card_fill(dark))
+                    .inner_margin(egui::Margin::symmetric(14, 10)),
+            )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.heading("Task queue");
-                    if ui.button("Clear finished").clicked() {
-                        self.tasks.retain(|task| {
-                            !matches!(task.state, TaskState::Done | TaskState::Failed)
-                        });
-                    }
+                    ui.label(egui::RichText::new(self.t("Task queue", "任务队列")).heading());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(self.t("Clear finished", "清除已完成")).clicked() {
+                            self.tasks.retain(|task| {
+                                !matches!(
+                                    task.state,
+                                    TaskState::Done | TaskState::Failed | TaskState::Cancelled
+                                )
+                            });
+                        }
+                    });
                 });
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     if self.tasks.is_empty() {
-                        ui.weak("No tasks yet.");
+                        ui.add_space(10.0);
+                        ui.vertical_centered(|ui| {
+                            ui.label(
+                                egui::RichText::new("◌")
+                                    .size(30.0)
+                                    .color(ACCENT.gamma_multiply(0.7)),
+                            );
+                            ui.label(
+                                egui::RichText::new(self.t(
+                                    "No tasks yet. Drop a file above to begin.",
+                                    "当前没有任务。把文件拖到上方即可开始。",
+                                ))
+                                .weak(),
+                            );
+                        });
                     }
                     let mut cancel_id = None;
                     for task in &self.tasks {
                         ui.horizontal(|ui| {
-                            ui.label(format!("{:<14}", task.label));
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{}  {}",
+                                    task_icon(&task.state),
+                                    task.label
+                                ))
+                                .strong(),
+                            );
                             ui.add(
                                 egui::ProgressBar::new(task.progress / 100.0)
-                                    .desired_width(240.0)
-                                    .show_percentage(),
+                                    .desired_width(230.0)
+                                    .show_percentage()
+                                    .fill(task_color(&task.state)),
                             );
-                            ui.label(format!("{:?}", task.state));
-                            ui.weak(&task.message);
+                            ui.label(
+                                egui::RichText::new(task_state_label(self.lang, &task.state))
+                                    .small()
+                                    .color(task_color(&task.state)),
+                            );
+                            ui.label(egui::RichText::new(&task.message).small().weak());
                             if matches!(task.state, TaskState::Queued | TaskState::Running)
-                                && ui.small_button("Cancel").clicked()
+                                && ui.small_button(self.t("Cancel", "取消")).clicked()
                             {
                                 cancel_id = Some(task.id);
                             }
@@ -516,84 +847,402 @@ impl eframe::App for App {
                 });
             });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Add files").clicked() {
-                    if let Some(files) = rfd::FileDialog::new().pick_files() {
-                        self.add_inputs(files);
-                    }
-                }
-                if ui.button("Add folder").clicked() {
-                    if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                        match formflux_core::io::list_files(&folder, false, true) {
-                            Ok(files) => self.add_inputs(files),
-                            Err(error) => self.status = error.to_string(),
-                        }
-                    }
-                }
-                if ui.button("Clear").clicked() {
-                    self.inputs.clear();
-                    self.refresh_preview();
-                }
-                ui.separator();
-                ui.label("Output");
-                ui.add(egui::TextEdit::singleline(&mut self.output_dir).desired_width(320.0));
-            });
-            ui.add_space(4.0);
-            ui.label(egui::RichText::new(&self.status).weak());
-            ui.separator();
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(if dark {
+                        egui::Color32::from_rgb(24, 28, 33)
+                    } else {
+                        egui::Color32::from_rgb(247, 249, 251)
+                    })
+                    .inner_margin(egui::Margin::same(14)),
+            )
+            .show(ctx, |ui| {
+                egui::Frame::new()
+                    .fill(card_fill(dark))
+                    .corner_radius(10)
+                    .inner_margin(egui::Margin::symmetric(12, 8))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .button(format!("＋  {}", self.t("Add files", "添加文件")))
+                                .clicked()
+                            {
+                                if let Some(files) = rfd::FileDialog::new().pick_files() {
+                                    self.add_inputs(files);
+                                }
+                            }
+                            if ui
+                                .button(format!("▣  {}", self.t("Add folder", "添加文件夹")))
+                                .clicked()
+                            {
+                                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                                    match formflux_core::io::list_files(&folder, false, true) {
+                                        Ok(files) => self.add_inputs(files),
+                                        Err(error) => self.status = error.to_string(),
+                                    }
+                                }
+                            }
+                            if ui.button(self.t("Clear", "清空")).clicked() {
+                                self.inputs.clear();
+                                self.refresh_preview();
+                            }
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.button("📁").clicked() {
+                                        let mut dialog = rfd::FileDialog::new();
+                                        if let Some(dir) = self.config.ui.last_output_dir.clone() {
+                                            dialog = dialog.set_directory(dir);
+                                        }
+                                        if let Some(folder) = dialog.pick_folder() {
+                                            self.output_dir = folder.display().to_string();
+                                            self.config.ui.last_output_dir = Some(folder);
+                                            let _ = self.config.save_default();
+                                        }
+                                    }
+                                    let output_hint = lang.pick("Output folder", "输出目录");
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut self.output_dir)
+                                            .desired_width(300.0)
+                                            .hint_text(output_hint),
+                                    );
+                                    ui.label(
+                                        egui::RichText::new(self.t("Output", "输出"))
+                                            .small()
+                                            .weak(),
+                                    );
+                                },
+                            );
+                        });
+                        ui.add_space(2.0);
+                        ui.label(
+                            egui::RichText::new(&self.status)
+                                .small()
+                                .color(ui.visuals().weak_text_color()),
+                        );
+                    });
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.horizontal_top(|ui| {
-                    ui.vertical(|ui| {
-                        ui.set_min_width(260.0);
-                        ui.heading("Inputs");
-                        if self.inputs.is_empty() {
-                            ui.weak("Drop files here or add a folder.");
-                        }
-                        for path in self.inputs.iter().take(30) {
-                            ui.label(
-                                path.file_name()
+                ui.add_space(10.0);
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    egui::Frame::new()
+                        .fill(card_fill(dark))
+                        .corner_radius(10)
+                        .inner_margin(egui::Margin::same(14))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(self.t("Inputs", "输入")).heading());
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(
+                                            egui::RichText::new(self.inputs.len().to_string())
+                                                .small()
+                                                .weak(),
+                                        );
+                                    },
+                                );
+                            });
+                            ui.add_space(4.0);
+                            if self.inputs.is_empty() {
+                                let (rect, response) = ui.allocate_exact_size(
+                                    egui::vec2(ui.available_width(), 154.0),
+                                    egui::Sense::click(),
+                                );
+                                let hovered = response.hovered();
+                                let fill = if hovered {
+                                    ACCENT.gamma_multiply(0.14)
+                                } else {
+                                    subtle_fill(dark)
+                                };
+                                ui.painter().rect_filled(rect, 9.0, fill);
+                                dashed_rect(
+                                    ui.painter(),
+                                    rect.shrink(1.0),
+                                    if hovered {
+                                        ACCENT_SOFT
+                                    } else {
+                                        ui.visuals().weak_text_color()
+                                    },
+                                );
+                                ui.painter().text(
+                                    rect.center() - egui::vec2(0.0, 22.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    "＋",
+                                    egui::FontId::proportional(30.0),
+                                    if hovered {
+                                        ACCENT_SOFT
+                                    } else {
+                                        ui.visuals().weak_text_color()
+                                    },
+                                );
+                                ui.painter().text(
+                                    rect.center() + egui::vec2(0.0, 18.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    self.t("Drop files here", "把文件拖到这里"),
+                                    egui::FontId::proportional(14.0),
+                                    ui.visuals().text_color(),
+                                );
+                                ui.painter().text(
+                                    rect.center() + egui::vec2(0.0, 40.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    self.t(
+                                        "or click to browse · drag folders",
+                                        "或点击选择文件 · 可拖入文件夹",
+                                    ),
+                                    egui::FontId::proportional(11.0),
+                                    ui.visuals().weak_text_color(),
+                                );
+                                if response
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .clicked()
+                                {
+                                    if let Some(files) = rfd::FileDialog::new().pick_files() {
+                                        self.add_inputs(files);
+                                    }
+                                }
+                            }
+                            for path in self.inputs.iter().take(40) {
+                                let name = path
+                                    .file_name()
                                     .and_then(|name| name.to_str())
-                                    .unwrap_or("file"),
-                            )
-                            .on_hover_text(path.display().to_string());
-                        }
-                        if self.inputs.len() > 30 {
-                            ui.weak(format!("… and {} more", self.inputs.len() - 30));
-                        }
-                    });
-                    ui.separator();
-                    ui.vertical(|ui| match self.tab {
-                        Tab::Media => self.media_tab(ui),
-                        Tab::Image => self.image_tab(ui),
-                        Tab::Document => self.document_tab(ui),
-                        Tab::Hash => self.hash_tab(ui),
-                        Tab::Color => self.color_tab(ui),
-                        Tab::Tools => self.tools_tab(ui),
-                        Tab::Data => self.data_tab(ui),
-                        Tab::Generate => self.generate_tab(ui),
-                        Tab::Time => self.time_tab(ui),
-                    });
+                                    .unwrap_or("file");
+                                egui::Frame::new()
+                                    .fill(subtle_fill(dark))
+                                    .corner_radius(6)
+                                    .inner_margin(egui::Margin::symmetric(8, 6))
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(250.0);
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new(file_icon(name))
+                                                    .color(ACCENT_SOFT),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(shorten_middle(name, 34))
+                                                    .small(),
+                                            )
+                                            .on_hover_text(path.display().to_string());
+                                        });
+                                    });
+                            }
+                            if self.inputs.len() > 40 {
+                                ui.weak(format!(
+                                    "… {} {}",
+                                    self.inputs.len() - 40,
+                                    self.t("more", "个更多")
+                                ));
+                            }
+                        });
+
+                    ui.add_space(10.0);
+                    egui::Frame::new()
+                        .fill(card_fill(dark))
+                        .corner_radius(10)
+                        .inner_margin(egui::Margin::same(16))
+                        .show(ui, |ui| {
+                            let width = ui.available_width();
+                            ui.set_width(width);
+                            match self.tab {
+                                Tab::Media => self.media_tab(ui),
+                                Tab::Image => self.image_tab(ui),
+                                Tab::Document => self.document_tab(ui),
+                                Tab::Hash => self.hash_tab(ui),
+                                Tab::Color => self.color_tab(ui),
+                                Tab::Tools => self.tools_tab(ui),
+                                Tab::Data => self.data_tab(ui),
+                                Tab::Generate => self.generate_tab(ui),
+                                Tab::Time => self.time_tab(ui),
+                            }
+                        });
                 });
             });
-        });
+
+        self.about_window(ctx);
+        self.settings_window(ctx);
+    }
+}
+
+fn task_icon(state: &TaskState) -> &'static str {
+    match state {
+        TaskState::Queued => "◷",
+        TaskState::Running => "▶",
+        TaskState::Done => "✓",
+        TaskState::Failed => "!",
+        TaskState::Cancelled => "×",
+    }
+}
+
+fn task_color(state: &TaskState) -> egui::Color32 {
+    match state {
+        TaskState::Queued => egui::Color32::GRAY,
+        TaskState::Running => ACCENT_SOFT,
+        TaskState::Done => egui::Color32::from_rgb(60, 179, 113),
+        TaskState::Failed => DANGER,
+        TaskState::Cancelled => egui::Color32::from_rgb(200, 160, 60),
+    }
+}
+
+fn task_state_label(lang: Language, state: &TaskState) -> &'static str {
+    match state {
+        TaskState::Queued => lang.pick("queued", "排队中"),
+        TaskState::Running => lang.pick("running", "处理中"),
+        TaskState::Done => lang.pick("done", "已完成"),
+        TaskState::Failed => lang.pick("failed", "失败"),
+        TaskState::Cancelled => lang.pick("cancelled", "已取消"),
+    }
+}
+
+fn file_icon(name: &str) -> &'static str {
+    let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "mp4" | "webm" | "mkv" | "mov" | "avi" | "gif" => "▶",
+        "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tiff" | "ico" => "◈",
+        "md" | "html" | "txt" | "csv" | "tsv" => "¶",
+        "json" | "yaml" | "yml" | "xml" => "{}",
+        "ttf" | "otf" => "A",
+        _ => "•",
+    }
+}
+
+fn shorten_middle(text: &str, max: usize) -> String {
+    let count = text.chars().count();
+    if count <= max {
+        return text.to_string();
+    }
+    let head: String = text.chars().take(max / 2 - 1).collect();
+    let tail: String = text.chars().skip(count - (max / 2 - 1)).collect();
+    format!("{head}…{tail}")
+}
+
+impl App {
+    fn about_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.about_open;
+        let lang = self.lang;
+        egui::Window::new(lang.pick("About Formflux", "关于 Formflux"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.set_min_width(360.0);
+                ui.vertical_centered(|ui| {
+                    egui::Frame::new()
+                        .fill(ACCENT)
+                        .corner_radius(12)
+                        .inner_margin(egui::Margin::symmetric(14, 8))
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new("F")
+                                    .heading()
+                                    .strong()
+                                    .color(egui::Color32::WHITE),
+                            );
+                        });
+                    ui.add_space(6.0);
+                    ui.label(egui::RichText::new("Formflux").heading().strong());
+                    ui.label(
+                        egui::RichText::new(format!("v{} · MIT", formflux_shared::VERSION)).weak(),
+                    );
+                });
+                ui.add_space(8.0);
+                ui.separator();
+                egui::Grid::new("about-grid")
+                    .num_columns(2)
+                    .spacing([14.0, 7.0])
+                    .show(ui, |ui| {
+                        ui.label(lang.pick("Author", "作者"));
+                        ui.label(egui::RichText::new(formflux_shared::AUTHOR).strong());
+                        ui.end_row();
+                        ui.label(lang.pick("Repository", "仓库"));
+                        ui.hyperlink_to(formflux_shared::REPOSITORY, formflux_shared::REPOSITORY);
+                        ui.end_row();
+                        ui.label(lang.pick("License", "许可证"));
+                        ui.label(formflux_shared::LICENSE);
+                        ui.end_row();
+                        ui.label(lang.pick("Network", "网络"));
+                        ui.label(lang.pick("100% offline · no telemetry", "100% 离线 · 无遥测"));
+                        ui.end_row();
+                    });
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(lang.pick(
+                        "Offline media, image, document, hash, colour, data and developer tools.",
+                        "离线多媒体、图像、文档、哈希、颜色、数据与开发者工具箱。",
+                    ))
+                    .small()
+                    .weak(),
+                );
+            });
+        self.about_open = open;
+    }
+
+    fn settings_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.settings_open;
+        let lang = self.lang;
+        let mut jobs = if self.config.runtime.jobs == 0 {
+            self.config.effective_jobs()
+        } else {
+            self.config.runtime.jobs
+        };
+        let mut changed = false;
+        egui::Window::new(lang.pick("Settings", "设置"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.set_min_width(330.0);
+                ui.label(lang.pick("Concurrent jobs", "并发任务数"));
+                changed = ui
+                    .add(egui::Slider::new(&mut jobs, 1..=64).show_value(true))
+                    .changed();
+                ui.label(
+                    egui::RichText::new(lang.pick(
+                        "Applies to newly started tasks; restart to change queue capacity.",
+                        "对新任务生效；调整队列容量后需重启。",
+                    ))
+                    .small()
+                    .weak(),
+                );
+                ui.add_space(6.0);
+                ui.checkbox(
+                    &mut self.keep_aspect,
+                    lang.pick("Lock image aspect ratio", "锁定图像宽高比"),
+                );
+                ui.separator();
+                ui.label(lang.pick("Configuration", "配置文件"));
+                ui.monospace(
+                    AppConfig::default_path()
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_else(|_| "unknown".to_string()),
+                );
+            });
+        if changed {
+            self.config.runtime.jobs = jobs;
+            self.jobs = jobs;
+            let _ = self.config.save_default();
+        }
+        self.settings_open = open;
     }
 }
 
 impl App {
     fn media_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Media conversion");
-        egui::ComboBox::from_label("Format")
+        let lang = self.lang;
+        ui.heading(lang.pick("Media conversion", "媒体转换"));
+        egui::ComboBox::from_label(lang.pick("Format", "格式"))
             .selected_text(&self.media_format)
             .show_ui(ui, |ui| {
                 for format in ["mp4", "webm", "mkv", "mov", "mp3", "flac", "wav", "ogg"] {
                     ui.selectable_value(&mut self.media_format, format.to_string(), format);
                 }
             });
-        ui.checkbox(&mut self.media_stream_copy, "Stream copy (no re-encode)");
+        ui.checkbox(
+            &mut self.media_stream_copy,
+            lang.pick("Stream copy (no re-encode)", "流复制（不重新编码）"),
+        );
         ui.add(egui::Slider::new(&mut self.media_crf, 0..=51).text("CRF"));
-        if ui.button("Convert").clicked() {
+        if primary_button(ui, lang.pick("Convert", "转换")).clicked() {
             self.spawn_media();
         }
     }
@@ -643,33 +1292,72 @@ impl App {
             });
             Ok(message)
         };
-        self.tasks
-            .push(self.runner.spawn("Media convert", cancel, future));
-        self.status = "Media conversion queued.".to_string();
+        self.tasks.push(self.runner.spawn(
+            self.lang.pick("Media convert", "媒体转换"),
+            cancel,
+            future,
+        ));
+        self.status = self
+            .lang
+            .pick("Media conversion queued.", "媒体转换已排队。")
+            .to_string();
     }
 
     fn image_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Image processing");
-        egui::ComboBox::from_label("Output format")
+        let lang = self.lang;
+        ui.heading(lang.pick("Image processing", "图像处理"));
+        egui::ComboBox::from_label(lang.pick("Output format", "输出格式"))
             .selected_text(if self.image_format.is_empty() {
-                "same as input"
+                lang.pick("same as input", "与输入相同")
             } else {
                 &self.image_format
             })
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.image_format, String::new(), "same as input");
+                ui.selectable_value(
+                    &mut self.image_format,
+                    String::new(),
+                    lang.pick("same as input", "与输入相同"),
+                );
                 for format in ["jpg", "png", "webp", "bmp", "tiff", "ico", "gif"] {
                     ui.selectable_value(&mut self.image_format, format.to_string(), format);
                 }
             });
-        ui.add(egui::Slider::new(&mut self.image_quality, 1..=100).text("Quality"));
+        ui.add(
+            egui::Slider::new(&mut self.image_quality, 1..=100).text(lang.pick("Quality", "质量")),
+        );
         ui.horizontal(|ui| {
-            ui.label("Width");
-            ui.add(egui::DragValue::new(&mut self.image_width).range(0..=16384));
-            ui.label("Height");
-            ui.add(egui::DragValue::new(&mut self.image_height).range(0..=16384));
+            ui.label(lang.pick("Width", "宽度"));
+            let auto_label = lang.pick("Auto", "自动").to_owned();
+            ui.add(
+                egui::DragValue::new(&mut self.image_width)
+                    .range(0..=16384)
+                    .custom_formatter(|n, _| {
+                        if n == 0.0 {
+                            auto_label.clone()
+                        } else {
+                            format!("{n:.0}")
+                        }
+                    }),
+            );
+            ui.label(lang.pick("Height", "高度"));
+            ui.add(
+                egui::DragValue::new(&mut self.image_height)
+                    .range(0..=16384)
+                    .custom_formatter(|n, _| {
+                        if n == 0.0 {
+                            auto_label.clone()
+                        } else {
+                            format!("{n:.0}")
+                        }
+                    }),
+            );
+            ui.label(if self.keep_aspect { "🔒" } else { "🔓" })
+                .on_hover_text(lang.pick(
+                    "Aspect lock is configured in Settings.",
+                    "宽高比锁定可在“设置”中调整。",
+                ));
         });
-        if ui.button("Convert / compress").clicked() {
+        if primary_button(ui, lang.pick("Convert / compress", "转换 / 压缩")).clicked() {
             self.spawn_image();
         }
         if let Some(texture) = &self.preview {
@@ -683,7 +1371,10 @@ impl App {
                     .map(|metadata| metadata.len() <= 64 * 1024 * 1024)
                     .unwrap_or(false);
                 if !small_enough {
-                    ui.weak("Preview skipped for a large file.");
+                    ui.weak(lang.pick(
+                        "Preview skipped for a large file.",
+                        "文件过大，已跳过预览。",
+                    ));
                     return;
                 }
                 if let Ok(image) = image::open(path) {
@@ -705,15 +1396,16 @@ impl App {
     }
 
     fn document_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Document conversion");
-        egui::ComboBox::from_label("Target")
+        let lang = self.lang;
+        ui.heading(lang.pick("Document conversion", "文档转换"));
+        egui::ComboBox::from_label(lang.pick("Target", "目标格式"))
             .selected_text(&self.text_target)
             .show_ui(ui, |ui| {
                 for target in ["md", "html", "txt"] {
                     ui.selectable_value(&mut self.text_target, target.to_string(), target);
                 }
             });
-        if ui.button("Convert").clicked() {
+        if primary_button(ui, lang.pick("Convert", "转换")).clicked() {
             let Some(input) = self.inputs.first().cloned() else {
                 self.status = "Add a document first.".to_string();
                 return;
@@ -742,14 +1434,17 @@ impl App {
             );
         }
         ui.separator();
-        ui.heading("Offline OCR");
-        ui.label("Uses the first input image and an external Tesseract install.");
+        ui.heading(lang.pick("Offline OCR", "离线 OCR"));
+        ui.label(lang.pick(
+            "Uses the first input image and an external Tesseract install.",
+            "使用第一个输入图像和外部 Tesseract。",
+        ));
         ui.horizontal(|ui| {
-            ui.label("Language");
+            ui.label(lang.pick("Language", "语言"));
             ui.add(egui::TextEdit::singleline(&mut self.ocr_lang).desired_width(80.0));
             ui.label("PSM");
             ui.add(egui::DragValue::new(&mut self.ocr_psm).range(0..=13));
-            if ui.button("Recognize text").clicked() {
+            if ui.button(lang.pick("Recognize text", "识别文字")).clicked() {
                 let Some(input) = self.inputs.first().cloned() else {
                     self.status = "Add an image first.".to_string();
                     return;
@@ -782,22 +1477,24 @@ impl App {
                     });
                     Ok(message)
                 };
-                self.tasks.push(self.runner.spawn("OCR", cancel, future));
-                self.status = "OCR queued.".to_string();
+                self.tasks
+                    .push(self.runner.spawn(lang.pick("OCR", "OCR"), cancel, future));
+                self.status = lang.pick("OCR queued.", "OCR 已排队。").to_string();
             }
         });
     }
 
     fn hash_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("File hashes");
-        egui::ComboBox::from_label("Algorithm")
+        let lang = self.lang;
+        ui.heading(lang.pick("File hashes", "文件哈希"));
+        egui::ComboBox::from_label(lang.pick("Algorithm", "算法"))
             .selected_text(&self.hash_algorithm)
             .show_ui(ui, |ui| {
                 for algorithm in ["md5", "sha1", "sha256", "sha384", "sha512", "blake2b"] {
                     ui.selectable_value(&mut self.hash_algorithm, algorithm.to_string(), algorithm);
                 }
             });
-        if ui.button("Hash inputs").clicked() {
+        if primary_button(ui, lang.pick("Hash inputs", "计算哈希")).clicked() {
             if self.inputs.is_empty() {
                 self.status = "Add files first.".to_string();
                 return;
@@ -843,13 +1540,17 @@ impl App {
                     Err(error) => Err(error.into()),
                 }
             };
-            self.tasks.push(self.runner.spawn("Hash", cancel, future));
-            self.status = "Hash task queued.".to_string();
+            self.tasks
+                .push(self.runner.spawn(lang.pick("Hash", "哈希"), cancel, future));
+            self.status = lang
+                .pick("Hash task queued.", "哈希任务已排队。")
+                .to_string();
         }
     }
 
     fn color_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Colour tools");
+        let lang = self.lang;
+        ui.heading(lang.pick("Colour tools", "颜色工具"));
         ui.horizontal(|ui| {
             ui.add(egui::TextEdit::singleline(&mut self.color_input).desired_width(220.0));
             let mut pick = formflux_core::color::parse(&self.color_input)
@@ -861,14 +1562,14 @@ impl App {
                 self.color_input = format!("#{:02x}{:02x}{:02x}", pick.r(), pick.g(), pick.b());
             }
         });
-        egui::ComboBox::from_label("To")
+        egui::ComboBox::from_label(lang.pick("To", "转换为"))
             .selected_text(&self.color_target)
             .show_ui(ui, |ui| {
                 for space in ["hex", "rgb", "rgba", "hsl", "hsla", "cmyk", "lab"] {
                     ui.selectable_value(&mut self.color_target, space.to_string(), space);
                 }
             });
-        if ui.button("Convert").clicked() {
+        if primary_button(ui, lang.pick("Convert", "转换")).clicked() {
             match formflux_core::color::parse(&self.color_input) {
                 Ok(color) => {
                     let space = match formflux_core::color::ColorSpace::parse(&self.color_target) {
@@ -890,9 +1591,9 @@ impl App {
         ui.separator();
         ui.heading("WCAG contrast");
         ui.horizontal(|ui| {
-            ui.label("Background");
+            ui.label(lang.pick("Background", "背景色"));
             ui.add(egui::TextEdit::singleline(&mut self.color_secondary).desired_width(120.0));
-            if ui.button("Check").clicked() {
+            if ui.button(lang.pick("Check", "检查")).clicked() {
                 let foreground = formflux_core::color::parse(&self.color_input);
                 let background = formflux_core::color::parse(&self.color_secondary);
                 match (foreground, background) {
@@ -915,11 +1616,15 @@ impl App {
     }
 
     fn tools_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("File toolbox");
+        let lang = self.lang;
+        ui.heading(lang.pick("File toolbox", "文件工具箱"));
         ui.horizontal(|ui| {
-            ui.label("Split chunk size");
+            ui.label(lang.pick("Split chunk size", "分卷大小"));
             ui.add(egui::TextEdit::singleline(&mut self.split_size).desired_width(100.0));
-            if ui.button("Split first input").clicked() {
+            if ui
+                .button(lang.pick("Split first input", "分割第一个输入"))
+                .clicked()
+            {
                 let Some(input) = self.inputs.first().cloned() else {
                     self.status = "Add a file first.".to_string();
                     return;
@@ -945,7 +1650,10 @@ impl App {
                 }
             }
         });
-        if ui.button("Remove empty directories").clicked() {
+        if ui
+            .button(lang.pick("Remove empty directories", "清理空目录"))
+            .clicked()
+        {
             let dir = self.output_path();
             match formflux_core::tools::clean_empty_dirs(&dir, true) {
                 Ok(dirs) => self.status = format!("Would remove {} empty dir(s).", dirs.len()),
@@ -953,15 +1661,15 @@ impl App {
             }
         }
         ui.separator();
-        ui.heading("Radix");
+        ui.heading(lang.pick("Radix", "进制转换"));
         ui.horizontal(|ui| {
-            ui.label("Value");
+            ui.label(lang.pick("Value", "数值"));
             ui.add(egui::TextEdit::singleline(&mut self.radix_input).desired_width(180.0));
-            ui.label("From");
+            ui.label(lang.pick("From", "原进制"));
             ui.add(egui::TextEdit::singleline(&mut self.radix_from).desired_width(40.0));
-            ui.label("To");
+            ui.label(lang.pick("To", "目标进制"));
             ui.add(egui::TextEdit::singleline(&mut self.radix_to).desired_width(40.0));
-            if ui.button("Convert").clicked() {
+            if primary_button(ui, lang.pick("Convert", "转换")).clicked() {
                 let result = formflux_core::radix::Radix::parse(&self.radix_from)
                     .and_then(|from| {
                         formflux_core::radix::Radix::parse(&self.radix_to).map(|to| (from, to))
@@ -984,16 +1692,20 @@ impl App {
     }
 
     fn data_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Data conversion");
-        ui.label("Uses the first input file and the output directory.");
-        egui::ComboBox::from_label("Target")
+        let lang = self.lang;
+        ui.heading(lang.pick("Data conversion", "数据转换"));
+        ui.label(lang.pick(
+            "Uses the first input file and the output directory.",
+            "使用第一个输入文件和输出目录。",
+        ));
+        egui::ComboBox::from_label(lang.pick("Target", "目标格式"))
             .selected_text(&self.data_target)
             .show_ui(ui, |ui| {
                 for target in ["json", "yaml", "xml"] {
                     ui.selectable_value(&mut self.data_target, target.to_string(), target);
                 }
             });
-        if ui.button("Convert").clicked() {
+        if primary_button(ui, lang.pick("Convert", "转换")).clicked() {
             let Some(input) = self.inputs.first().cloned() else {
                 self.status = "Add a JSON/YAML/XML file first.".to_string();
                 return;
@@ -1013,17 +1725,27 @@ impl App {
     }
 
     fn generate_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Generate");
-        if ui.button("New UUID v4").clicked() {
+        let lang = self.lang;
+        ui.heading(lang.pick("Generate", "生成"));
+        if ui
+            .button(lang.pick("New UUID v4", "生成 UUID v4"))
+            .clicked()
+        {
             self.result = formflux_core::generate::uuid_v4();
             self.status = self.result.clone();
         }
-        if ui.button("New UUID v7").clicked() {
+        if ui
+            .button(lang.pick("New UUID v7", "生成 UUID v7"))
+            .clicked()
+        {
             self.result = formflux_core::generate::uuid_v7();
             self.status = self.result.clone();
         }
-        ui.add(egui::Slider::new(&mut self.password_length, 8..=128).text("Password length"));
-        if ui.button("Password").clicked() {
+        ui.add(
+            egui::Slider::new(&mut self.password_length, 8..=128)
+                .text(lang.pick("Password length", "密码长度")),
+        );
+        if ui.button(lang.pick("Password", "密码")).clicked() {
             let options = formflux_core::generate::PasswordOptions {
                 length: self.password_length,
                 ..Default::default()
@@ -1036,7 +1758,10 @@ impl App {
                 Err(error) => self.status = error.to_string(),
             }
         }
-        if ui.button("QR to output/qr.png").clicked() {
+        if ui
+            .button(lang.pick("QR to output/qr.png", "二维码写入 output/qr.png"))
+            .clicked()
+        {
             let target = self.output_path().join("qr.png");
             match formflux_core::generate::write_qr(&self.result, &target, 8, 4, false) {
                 Ok(()) => self.status = format!("Wrote {}", target.display()),
@@ -1049,8 +1774,9 @@ impl App {
     }
 
     fn time_tab(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Time and time zones");
-        if ui.button("Now").clicked() {
+        let lang = self.lang;
+        ui.heading(lang.pick("Time and time zones", "时间与时区"));
+        if ui.button(lang.pick("Now", "当前时间")).clicked() {
             match timelib::convert_timestamp(
                 timelib::now(timelib::TimeUnit::Seconds),
                 timelib::TimeUnit::Seconds,
@@ -1065,7 +1791,7 @@ impl App {
             }
         }
         ui.horizontal(|ui| {
-            ui.label("Timestamp");
+            ui.label(lang.pick("Timestamp", "时间戳"));
             ui.add(egui::TextEdit::singleline(&mut self.time_input).desired_width(160.0));
             egui::ComboBox::from_id_salt("unit")
                 .selected_text(&self.time_unit)
@@ -1074,10 +1800,10 @@ impl App {
                         ui.selectable_value(&mut self.time_unit, unit.to_string(), unit);
                     }
                 });
-            ui.label("Zone");
+            ui.label(lang.pick("Zone", "时区"));
             ui.add(egui::TextEdit::singleline(&mut self.time_zone).desired_width(140.0));
         });
-        if ui.button("Convert").clicked() {
+        if primary_button(ui, lang.pick("Convert", "转换")).clicked() {
             let value = self.time_input.trim().parse::<i64>();
             let unit = timelib::TimeUnit::parse(&self.time_unit);
             match (value, unit) {
@@ -1121,9 +1847,14 @@ fn main() -> eframe::Result {
             .with_min_inner_size([900.0, 600.0]),
         ..Default::default()
     };
+    let initial_inputs: Vec<PathBuf> = std::env::args_os()
+        .skip(1)
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
+        .collect();
     eframe::run_native(
         "Formflux",
         options,
-        Box::new(move |cc| Ok(Box::new(App::new(cc, config)?))),
+        Box::new(move |cc| Ok(Box::new(App::new(cc, config, initial_inputs)?))),
     )
 }

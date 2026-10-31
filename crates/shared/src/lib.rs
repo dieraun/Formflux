@@ -16,7 +16,7 @@ pub mod logging;
 pub mod platform;
 pub mod units;
 
-pub use config::{AppConfig, ThemePreference};
+pub use config::{AppConfig, Language, ThemePreference};
 pub use error::{FormfluxError, Result};
 pub use limits::{MemoryBudget, MemoryPermit};
 
@@ -25,3 +25,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Product name used in banners and window titles.
 pub const PRODUCT: &str = "Formflux";
+
+/// Project author shown in `--version`, the GUI About panel and README.
+pub const AUTHOR: &str = "dieraun";
+
+/// Canonical public repository.
+pub const REPOSITORY: &str = "https://github.com/dieraun/Formflux";
+
+/// SPDX license identifier.
+pub const LICENSE: &str = "MIT";
