@@ -1,0 +1,18 @@
+[package]
+name = "formflux-cuda"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Optional CUDA detection and CPU-fallback helpers for Formflux"
+repository.workspace = true
+
+[features]
+default = []
+cuda = []
+
+[dependencies]
+formflux-shared.workspace = true
+serde.workspace = true
+tracing.workspace = true

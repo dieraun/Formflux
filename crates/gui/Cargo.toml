@@ -1,0 +1,26 @@
+[package]
+name = "formflux-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Desktop GUI for Formflux"
+repository.workspace = true
+
+[[bin]]
+name = "formflux-gui"
+path = "src/main.rs"
+
+[dependencies]
+formflux-shared.workspace = true
+formflux-core.workspace = true
+anyhow.workspace = true
+eframe.workspace = true
+egui.workspace = true
+egui_extras.workspace = true
+dark-light.workspace = true
+rfd.workspace = true
+tokio.workspace = true
+image.workspace = true
+tracing.workspace = true
