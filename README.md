@@ -73,7 +73,7 @@ are not strict single-file binaries.
 | Image convert/compress/EXIF/watermark | yes | convert, preview |
 | Documents, OCR, codecs, radix, encodings | yes | document convert, OCR |
 | Hashes and manifests | yes | hashes |
-| Colour, WCAG, gradients, palettes | yes | convert, picker, WCAG |
+| Colour, WCAG, gradients, palettes | yes | convert, swatch, WCAG |
 | File toolbox, units | yes | split, cleanup, radix |
 | Data, generate, time | yes | convert, UUID/password/QR, timestamps |
 
