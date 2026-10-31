@@ -16,9 +16,9 @@ keywords = ["offline", "multimedia", "image", "converter", "toolbox"]
 categories = ["command-line-utilities", "multimedia", "graphics"]
 
 [workspace.dependencies]
-formflux-shared = { path = "crates/shared" }
-formflux-core = { path = "crates/core" }
-formflux-cuda = { path = "crates/cuda" }
+formflux-shared = { version = "0.1.0", path = "crates/shared" }
+formflux-core = { version = "0.1.0", path = "crates/core" }
+formflux-cuda = { version = "0.1.0", path = "crates/cuda" }
 
 anyhow = "1.0"
 base64 = "0.22"
